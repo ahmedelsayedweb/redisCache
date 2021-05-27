@@ -1,14 +1,11 @@
 // Import the installed modules.
 const express = require('express');
-const responseTime = require('response-time')
 const axios = require('axios');
 const redis = require('redis');
 
 const client = redis.createClient();
 
 const app = express();
-// use response-time as a middleware
-app.use(responseTime());
 app.get('/api/search', (req, res) => {
     // Extract the query from url and trim trailing spaces
     const query = (req.query.query).trim();
@@ -21,13 +18,14 @@ app.get('/api/search', (req, res) => {
         if (result) {
             const resultJSON = JSON.parse(result);
             return res.status(200).json(resultJSON);
-        } else { // Key does not exist in Redis store
+        } else {
+            // Key does not exist in Redis store
             // Fetch directly from Wikipedia API
             return axios.get(searchUrl)
                 .then(response => {
                     const responseJSON = response.data;
                     // Save the Wikipedia API response in Redis store
-                    client.setex(`wikipedia:${query}`, 3600, JSON.stringify({ source: 'Redis Cache', ...responseJSON, }));
+                    client.set(`wikipedia:${query}`, JSON.stringify({ source: 'Redis Cache', ...responseJSON, }), 'EX', 60);
                     // Send JSON response to client
                     return res.status(200).json({ source: 'Wikipedia API', ...responseJSON, });
                 })
